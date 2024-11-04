@@ -41,7 +41,7 @@ impl Solver {
         println!("{:+}", self.problem);
     }
 
-    pub fn has_solution(&self) -> Result<Option<Code>, SolverError> {
+    fn has_solution(&self) -> Result<Option<Code>, SolverError> {
         let known_constraints = self.problem.cards.iter().map(|c| c.card.known_constraint()).collect::<Vec<_>>();
         if known_constraints.iter().all(|c| c.is_some()) {
             let cons = known_constraints.iter().flatten().fold(Constraint::none(), |a, &b| a & b.clone());
@@ -55,7 +55,7 @@ impl Solver {
     // not exist any combination of the other constraints that gives a unique solution. Selecting such constraints
     // would make the problem poorly-defined because of the multiplicity of the solution, so we can safely disable
     // such constraints.
-    pub fn disable_insufficient_constraints(&mut self) {
+    fn disable_insufficient_constraints(&mut self) {
         loop {
             // Stop the loop if there are no more insufficient constraints
             let to_remove = self.insufficient_constraints();
@@ -109,7 +109,7 @@ impl Solver {
     // TODO: Remove redundant constraints ?
     // Constraints that make all the constraints of another card redundant
 
-    pub fn best_question(&self) -> Code {
+    fn best_question(&self) -> Code {
         let mut questions = Vec::with_capacity(125);
         for c in Code::all() {
             let elims = self.problem.cards().map(|card| Self::expected_eliminations(card, c));
@@ -120,7 +120,7 @@ impl Solver {
         questions.pop().unwrap().1
     }
 
-    pub fn best_card_for_question(&self, code: Code) -> Option<usize> {
+    fn best_card_for_question(&self, code: Code) -> Option<usize> {
         let elims = self.problem.cards().map(|card| Self::expected_eliminations(card, code));
         let (card_idx, total_elims) = elims.enumerate().max_by_key(|(_, e)| *e).unwrap();
         if total_elims == Rational32::ZERO { None } else { Some(card_idx) } 
@@ -133,44 +133,50 @@ impl Solver {
         if n0 + n1 == 0 { Rational32::ZERO } else { Rational32::new_raw(2 * n0 * n1, n0 + n1) }
     }
 
-    pub fn ask_question(&mut self, code: Code) -> Result<(), SolverError> {
+    pub fn question(&mut self, code: Code, card_idx: usize) -> Result<bool, SolverError> {
+        // Retrieve the card that we are querying
+        let CardAssignment { card, letter } = &mut self.problem.cards[card_idx];
+
+        // Ask the user for the result
+        println!("Please type in the answer of card {} for the code ▲■●={}", letter, code);
+        println!("{}: {}", letter, card);
+        let answer = input_validation::get_bool("Answer [y/n] > ");
+        println!();
+        
+        // From the answer, eliminate the constraints that didn't agree
+        for cons in card.active_constraints_mut() {
+            if cons.accepts(code) != answer {
+                cons.disable();
+            }
+        }
+
+        // If the card becomes invalid, return an error
+        if card.invalid() {
+            return Err(SolverError::InvalidCard(self.problem.cards[card_idx].clone()))
+        }
+
+        // If the constraint becomes known, select it
+        if let Some(cons) = card.known_constraint_mut() {
+            cons.select();
+        }
+
+        // Disable any constraints that might have become insufficient
+        self.disable_insufficient_constraints();
+        Ok(answer)
+    }
+
+    pub fn round(&mut self, code: Code) -> Result<(), SolverError> {
         // Start the round of questions
         self.questions.push(code);
         let mut answers = HashMap::new();
 
         for _ in 0..3 {
-            let card_idx = if let Some(i) = self.best_card_for_question(code) { i } else { break };
-            let CardAssignment { card, letter } = &mut self.problem.cards[card_idx];
-            
-            // If all the constraints would answer the same thing, it doesn't give us information to ask the card
-            if card.active_constraints().map(|c| c.accepts(code)).all_equal() {
-                continue;
-            }
-
-            // Otherwise, ask the questino to the user
-            println!("Please type in the answer of card {} for the code ▲■●={}", letter, code);
-            println!("{}: {}", letter, card);
-            let answer = input_validation::get_bool("Answer [y/n] > ");
-            println!();
-            answers.insert(card_idx, answer);
-
-            // From the answer, eliminate the constraints that didn't agree
-            for cons in card.active_constraints_mut() {
-                if cons.accepts(code) != answer {
-                    cons.disable();
-                }
-            }
-            
-            // If the card becomes invalid, return an error
-            if card.invalid() {
+            let card_idx = if let Some(i) = self.best_card_for_question(code) { i } else {
                 self.answers.push(answers);
-                return Err(SolverError::InvalidCard(self.problem.cards[card_idx].clone()))
-            }
-            
-            // If the constraint becomes known, select it
-            if let Some(cons) = card.known_constraint_mut() {
-                cons.select();
-            }
+                return Ok(())
+            };
+            let answer = self.question(code, card_idx)?;
+            answers.insert(card_idx, answer);
         }
 
         self.answers.push(answers);
@@ -186,7 +192,7 @@ impl Solver {
             self.print_state();
 
             let c = self.best_question();
-            self.ask_question(c)?;
+            self.round(c)?;
 
             if let Some(sol) = self.has_solution()? {
                 return Ok(sol);
