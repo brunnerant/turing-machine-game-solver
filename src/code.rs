@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, ops::Index};
+use std::{fmt::Display, ops::Index};
 use itertools::{iproduct, Itertools};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -57,12 +57,9 @@ impl Code {
     pub fn num_distinct(&self) -> u8 {
         self.digits.iter().unique().count() as u8
     }
-
-    pub fn counts(&self) -> HashMap<Digit, u8> {
-        self.digits.iter().fold(HashMap::new(), |mut map, &d| {
-            *map.entry(d).or_insert(0) += 1;
-            map
-        })
+    
+    pub fn count_adj<F: Fn(Digit, Digit) -> bool>(&self, f: F) -> u8 {
+        f(self[0], self[1]) as u8 + f(self[1], self[2]) as u8
     }
 }
 

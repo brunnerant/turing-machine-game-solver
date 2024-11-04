@@ -1,5 +1,4 @@
 use std::env;
-
 use itertools::Itertools;
 use turing_machine_game::dsl::*;
 use turing_machine_game::solve::{Solver, SolverError};
@@ -16,6 +15,8 @@ fn main() {
     match solver.solve() {
         Ok(sol) => {
             println!("Found solution: {}", sol);
+            println!("Number of rounds: {}", solver.num_rounds());
+            println!("Number of questions: {}", solver.num_questions());
         },
         Err(SolverError::InvalidCard(card)) => {
             println!("Card {} is invalid because all its constraints are impossible.", card.letter);

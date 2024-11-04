@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ptr};
 use itertools::Itertools;
 use num::Rational32;
-use crate::{code::Code, dsl::{Card, Constraint, Symbol}, problem::{CardAssignment, Problem}};
+use crate::{card::Card, code::{Code, Symbol}, constraint::Constraint, problem::{CardAssignment, Problem}};
 
 pub enum SolverError {
     InvalidCard(CardAssignment),
@@ -17,6 +17,14 @@ pub struct Solver {
 impl Solver {
     pub fn new(problem: Problem) -> Solver {
         Solver { problem, questions: Vec::new(), answers: Vec::new() }
+    }
+
+    pub fn num_rounds(&self) -> usize {
+        self.questions.len()
+    }
+
+    pub fn num_questions(&self) -> usize {
+        self.answers.iter().map(|a| a.len()).sum()
     }
 
     pub fn print_state(&self) {
@@ -101,20 +109,22 @@ impl Solver {
     // TODO: Remove redundant constraints ?
     // Constraints that make all the constraints of another card redundant
 
-    pub fn best_question(&self) -> (Code, Vec<usize>) {
+    pub fn best_question(&self) -> Code {
         let mut questions = Vec::with_capacity(125);
         for c in Code::all() {
             let elims = self.problem.cards().map(|card| Self::expected_eliminations(card, c));
-            let best3 = elims.enumerate().sorted_by_key(|(_, e)| *e).rev().take(3).collect::<Vec<_>>();
-            let total_elims = best3.iter().fold(Rational32::ZERO, |acc, (_, e)| acc + e);
-            let best3_cards = best3.into_iter().map(|(i, _)| i).collect();
-            questions.push((total_elims, c, best3_cards));
+            let total_elims = elims.sorted().rev().take(3).sum::<Rational32>();
+            questions.push((total_elims, c));
         }
-        questions.sort_by_key(|(e, _, _)| *e);
-        let (_, c, best_cards) = questions.pop().unwrap();
-        (c, best_cards)
+        questions.sort_by_key(|(e, _)| *e);
+        questions.pop().unwrap().1
     }
 
+    pub fn best_card_for_question(&self, code: Code) -> Option<usize> {
+        let elims = self.problem.cards().map(|card| Self::expected_eliminations(card, code));
+        let (card_idx, total_elims) = elims.enumerate().max_by_key(|(_, e)| *e).unwrap();
+        if total_elims == Rational32::ZERO { None } else { Some(card_idx) } 
+    }
 
     fn expected_eliminations(card: &Card, code: Code) -> Rational32 {
         let counts = card.active_constraints().map(|c| c.accepts(code)).counts();
@@ -123,21 +133,22 @@ impl Solver {
         if n0 + n1 == 0 { Rational32::ZERO } else { Rational32::new_raw(2 * n0 * n1, n0 + n1) }
     }
 
-    pub fn ask_question(&mut self, code: Code, cards: Vec<usize>) -> Result<(), SolverError> {
+    pub fn ask_question(&mut self, code: Code) -> Result<(), SolverError> {
         // Start the round of questions
         self.questions.push(code);
         let mut answers = HashMap::new();
 
-        for card_idx in cards {
+        for _ in 0..3 {
+            let card_idx = if let Some(i) = self.best_card_for_question(code) { i } else { break };
             let CardAssignment { card, letter } = &mut self.problem.cards[card_idx];
             
             // If all the constraints would answer the same thing, it doesn't give us information to ask the card
             if card.active_constraints().map(|c| c.accepts(code)).all_equal() {
                 continue;
             }
-            
+
             // Otherwise, ask the questino to the user
-            println!("Please type in the answer of card {} for the code {}", letter, code);
+            println!("Please type in the answer of card {} for the code ▲■●={}", letter, code);
             println!("{}: {}", letter, card);
             let answer = input_validation::get_bool("Answer [y/n] > ");
             println!();
@@ -174,8 +185,8 @@ impl Solver {
             println!("--- Round {} ---", round);
             self.print_state();
 
-            let (c, cards) = self.best_question();
-            self.ask_question(c, cards)?;
+            let c = self.best_question();
+            self.ask_question(c)?;
 
             if let Some(sol) = self.has_solution()? {
                 return Ok(sol);
