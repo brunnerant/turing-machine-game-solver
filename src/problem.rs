@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use crate::card::*;
 
+#[derive(Clone)]
 pub struct CardAssignment {
     pub letter: char,
     pub card: Card,

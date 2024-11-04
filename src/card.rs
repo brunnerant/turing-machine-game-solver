@@ -1,7 +1,8 @@
 use std::{fmt::Display, ops::BitOr};
 use crate::constraint::Constraint;
+use itertools::Itertools;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Card { pub constraints: Vec<Constraint> }
 
 impl Card {
@@ -21,13 +22,9 @@ impl Card {
         self.constraints.iter_mut().filter(|c| !c.is_disabled())
     }
 
-    fn single_elem<T>(mut it: impl Iterator<Item = T>) -> Option<T> {
-        if let res@Some(_) = it.next() {
-            if it.next().is_some() {
-                None
-            } else {
-                res
-            }
+    fn single_elem<T>(it: impl Iterator<Item = T>) -> Option<T> {
+        if let Some((elem,)) = it.collect_tuple() {
+            Some(elem)
         } else {
             None
         }

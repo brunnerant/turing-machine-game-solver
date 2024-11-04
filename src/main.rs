@@ -1,14 +1,32 @@
+use std::env;
+
+use itertools::Itertools;
 use turing_machine_game::dsl::*;
-use turing_machine_game::problem::Problem;
-use turing_machine_game::solve::Solver;
+use turing_machine_game::solve::{Solver, SolverError};
 
 fn main() {
-    let card1 = Symbol::all_combinations().map(|(s1, s2)| cmps(s1, s2)).reduce(|a, b| a | b).unwrap();
-    let card2 = (0..3).map(|i| countv(3, i) | countv(4, i)).reduce(|a, b| a | b).unwrap();
-    let card3 = Symbol::all_symbols().map(|s| Card::empty() | gtv(s, 1)).reduce(|a, b| a | b).unwrap();
-    let card4 = more_even() | more_odd();
-    let problem = Problem::new(vec![card1, card2, card3, card4]);
+    let ids = env::args().skip(1).map(|arg| arg.parse()).collect_vec();
+    if ids.is_empty() || ids.iter().any(|v| v.is_err()) {
+        println!("Please pass the IDs of the cards as argument to the script.");
+        return;
+    }
 
+    let problem = problem_from_ids(ids.into_iter().map(|v| v.unwrap()));
     let mut solver = Solver::new(problem);
-    solver.solve().unwrap();
+    match solver.solve() {
+        Ok(sol) => {
+            println!("Found solution: {}", sol);
+        },
+        Err(SolverError::InvalidCard(card)) => {
+            println!("Card {} is invalid because all its constraints are impossible.", card.letter);
+            println!("You might have entered a wrong value, or the problem is ill-defined.");
+        },
+        Err(SolverError::MultipleSolutions(sols)) => {
+            println!("The set of cards leads to several solutions: {}", sols.iter().map(|s| format!("{}", s)).join(", "));
+            println!("You might have entered a wrong value, or the problem is ill-defined.");
+        },
+    }
+
+    println!();
+    solver.print_state();
 }

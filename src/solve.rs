@@ -3,10 +3,9 @@ use itertools::Itertools;
 use num::Rational32;
 use crate::{code::Code, dsl::{Card, Constraint, Symbol}, problem::{CardAssignment, Problem}};
 
-#[derive(Debug)]
 pub enum SolverError {
-    InvalidCard(Card),
-    MultipleSolutions(Constraint)
+    InvalidCard(CardAssignment),
+    MultipleSolutions(Vec<Code>),
 }
 
 pub struct Solver {
@@ -38,7 +37,7 @@ impl Solver {
         let known_constraints = self.problem.cards.iter().map(|c| c.card.known_constraint()).collect::<Vec<_>>();
         if known_constraints.iter().all(|c| c.is_some()) {
             let cons = known_constraints.iter().flatten().fold(Constraint::none(), |a, &b| a & b.clone());
-            cons.solution().map_or_else(|| Err(SolverError::MultipleSolutions(cons)), |s| Ok(Some(s)))
+            cons.solution().map_or_else(|| Err(SolverError::MultipleSolutions(cons.solutions().collect())), |s| Ok(Some(s)))
         } else {
             Ok(None)
         }
@@ -154,7 +153,7 @@ impl Solver {
             // If the card becomes invalid, return an error
             if card.invalid() {
                 self.answers.push(answers);
-                return Err(SolverError::InvalidCard(card.clone()))
+                return Err(SolverError::InvalidCard(self.problem.cards[card_idx].clone()))
             }
             
             // If the constraint becomes known, select it
@@ -179,9 +178,6 @@ impl Solver {
             self.ask_question(c, cards)?;
 
             if let Some(sol) = self.has_solution()? {
-                println!("Found solution: {}", sol);
-                println!();
-                self.print_state();
                 return Ok(sol);
             }
 
