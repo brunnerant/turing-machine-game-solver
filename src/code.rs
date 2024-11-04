@@ -44,6 +44,10 @@ impl Code {
         pred(self.triangle) as u8 + pred(self.square) as u8 + pred(self.circle) as u8
     }
 
+    pub fn index(&self) -> Digit {
+        25 * (self.triangle - 1) + 5 * (self.square - 1) + self.circle - 1
+    }
+
     pub fn all() -> impl Iterator<Item = Code> {
         iproduct!(1..=5, 1..=5, 1..=5).map(|(a, b, c)| Self::new(a, b, c))
     }

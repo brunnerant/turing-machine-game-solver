@@ -1,6 +1,7 @@
 use std::{fmt::Display, ops::BitOr};
 use crate::constraint::Constraint;
 
+#[derive(Debug, Clone)]
 pub struct Card { pub constraints: Vec<Constraint> }
 
 impl Card {
@@ -16,17 +17,28 @@ impl Card {
         self.constraints.iter().filter(|c| !c.is_disabled())
     }
 
-    pub fn known_constraint(&self) -> Option<&Constraint> {
-        let mut active = self.active_constraints();
-        if let Some(c) = active.next() {
-            if active.next().is_some() {
+    pub fn active_constraints_mut(&mut self) -> impl Iterator<Item = &mut Constraint> {
+        self.constraints.iter_mut().filter(|c| !c.is_disabled())
+    }
+
+    fn single_elem<T>(mut it: impl Iterator<Item = T>) -> Option<T> {
+        if let res@Some(_) = it.next() {
+            if it.next().is_some() {
                 None
             } else {
-                Some(c)
+                res
             }
         } else {
             None
         }
+    }
+
+    pub fn known_constraint(&self) -> Option<&Constraint> {
+        Self::single_elem(self.active_constraints())
+    }
+
+    pub fn known_constraint_mut(&mut self) -> Option<&mut Constraint> {
+        Self::single_elem(self.active_constraints_mut())
     }
 
     pub fn disable_constraint(&mut self, idx: usize) {
@@ -40,7 +52,11 @@ impl Card {
 
 impl Display for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]", self.constraints.iter().map(|c| format!("{}", c)).collect::<Vec<_>>().join(", "))
+        if f.sign_plus() {
+            write!(f, "[{}]", self.constraints.iter().map(|c| format!("{:+}", c)).collect::<Vec<_>>().join(", "))
+        } else {
+            write!(f, "[{}]", self.constraints.iter().map(|c| format!("{}", c)).collect::<Vec<_>>().join(", "))
+        }
     }
 }
 

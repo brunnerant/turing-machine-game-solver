@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+input_validation = "0.1.2"
 itertools = "0.13.0"
+num = "0.4.3"

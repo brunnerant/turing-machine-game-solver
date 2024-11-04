@@ -26,7 +26,7 @@ impl Constraint {
     }
 
     pub fn accepts(&self, code: Code) -> bool {
-        self.value & (1 << (25 * code.triangle + 5 * code.square + code.circle)) != 0
+        self.value & (1 << code.index()) != 0
     }
 
     pub fn disable(&mut self) {
@@ -57,7 +57,7 @@ impl Constraint {
     pub fn solution(&self) -> Option<Code> {
         if self.is_sufficient() {
             let idx = self.value.trailing_zeros();
-            Some(Code::new((idx / 25) as Digit, ((idx / 5) % 5) as Digit, (idx % 5) as Digit))
+            Some(Code::new((idx / 25 + 1) as Digit, ((idx / 5) % 5 + 1) as Digit, (idx % 5 + 1) as Digit))
         } else {
             None
         }
@@ -74,7 +74,7 @@ impl BitAnd for Constraint {
 
 impl Display for Constraint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix = if self.disabled { "⛔" } else { "" };
+        let prefix = if self.disabled && f.sign_plus() { "❌" } else { "" };
         write!(f, "{}{}", prefix, self.name)
     }
 }
