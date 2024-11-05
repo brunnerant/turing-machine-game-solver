@@ -1,48 +1,42 @@
-use std::{fmt::{Debug, Display}, ops::BitAnd};
+use std::{fmt::Debug, ops::BitAnd};
 use itertools::Itertools;
 use crate::code::*;
 
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Constraint {
     value: u128,
-    name: String,
-    disabled: bool,
 }
 
 impl Constraint {
     pub fn none() -> Self {
-        Constraint { value: !0, name: "none".into(), disabled: false }
+        Constraint { value: !0 }
     }
 
-    pub fn new<F: Fn(Code) -> bool>(f: F, name: String) -> Self {
+    pub fn new<F: Fn(Code) -> bool>(f: F) -> Self {
         let mut value = 0;
         for (i, code) in Code::all().enumerate() {
             if f(code) {
                 value |= 1 << i
             }
         }
-        Constraint { value, name, disabled: false }
+        Constraint { value }
+    }
+
+    pub fn set_group(&mut self, group: u8) {
+        self.value = (self.value & ((1 << 125) - 1)) | (group as u128) << 125;
+    }
+
+    pub fn group(&self) -> u8 {
+        (self.value >> 125) as u8
     }
 
     pub fn accepts(&self, code: Code) -> bool {
         self.value & (1 << code.index()) != 0
     }
 
-    pub fn disable(&mut self) {
-        self.disabled = true;
-    }
-
-    pub fn select(&mut self) {
-        self.name = format!("✅{}", self.name);
-    }
-
     pub fn num_solutions(&self) -> u32 {
         self.value.count_ones()
-    }
-
-    pub fn is_disabled(&self) -> bool {
-        self.disabled
     }
 
     pub fn is_sufficient(&self) -> bool {
@@ -68,14 +62,7 @@ impl BitAnd for Constraint {
     type Output = Constraint;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        Constraint { value: self.value & rhs.value, name: format!("{} & {}", self, rhs), disabled: false }
-    }
-}
-
-impl Display for Constraint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix = if self.disabled && f.sign_plus() { "❌" } else { "" };
-        write!(f, "{}{}", prefix, self.name)
+        Constraint { value: self.value & rhs.value }
     }
 }
 

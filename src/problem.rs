@@ -1,49 +1,55 @@
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
-use crate::card::*;
+use itertools::Itertools;
+
+use crate::{cards::card_from_id, constraint::Constraint};
 
 #[derive(Clone)]
-pub struct CardAssignment {
-    pub letter: char,
-    pub card: Card,
-}
+pub struct Card { pub constraints: HashMap<String, Constraint> }
 
-impl Display for CardAssignment {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if f.sign_plus() {
-            write!(f, "{}: {:+}", self.letter, self.card)
-        } else {
-            write!(f, "{}: {}", self.letter, self.card)
-        }
+impl Card {
+    pub fn new(cons: Vec<(String, Constraint)>) -> Card {
+        Card { constraints: HashMap::from_iter(cons.into_iter()) }
     }
 }
 
-pub struct Problem { pub cards: Vec<CardAssignment> }
+impl Display for Card {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}]", self.constraints.keys().join(", "))
+    }
+}
+
+pub enum ProblemMode {
+    Normal, Extreme, Nightmare
+}
+
+pub struct Problem { pub cards: Vec<Card>, pub mode: ProblemMode }
 
 impl Problem {
-    pub fn new(cards: Vec<Card>) -> Self {
-        Problem { cards: "ABCDEF".chars().zip(cards).map(|(letter, card)| CardAssignment { letter, card }).collect() }
+    pub fn from_cards(mode: ProblemMode, cards: Vec<Card>) -> Problem {
+        Problem { cards, mode }
     }
 
-    pub fn cards(&self) -> impl Iterator<Item = &Card> {
-        self.cards.iter().map(|c| &c.card)
-    }
-
-    pub fn cards_mut(&mut self) -> impl Iterator<Item = &mut Card> {
-        self.cards.iter_mut().map(|c| &mut c.card)
+    pub fn from_card_ids(mode: ProblemMode, ids: Vec<usize>) -> Problem {
+        Problem { cards: ids.into_iter().map(card_from_id).collect(), mode }
     }
 }
 
 impl Display for Problem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if f.sign_plus() {
-            for c in self.cards.iter() {
-                writeln!(f, "{:+}", c)?
-            }
-        } else {
-            for c in self.cards.iter() {
-                writeln!(f, "{}", c)?
-            }
+        match self.mode {
+            ProblemMode::Normal =>
+                for (card, letter) in self.cards.iter().zip("ABCDEF".chars()) {
+                    writeln!(f, "{}: {}", letter, card)?
+                }
+            ProblemMode::Extreme =>
+                for (mut cards, letter) in self.cards.iter().chunks(2).into_iter().zip("ABCDEF".chars()) {
+                    writeln!(f, "{}: {}", letter, cards.join(" "))?
+                }
+            ProblemMode::Nightmare =>
+                for (card, letter) in self.cards.iter().zip("ABCDEF".chars()) {
+                    writeln!(f, "{}?: {}", letter, card)?
+                }
         }
         Ok(())
     }

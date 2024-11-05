@@ -30,7 +30,7 @@ pub type Digit = u8;
 
 #[derive(Clone, Copy)]
 pub struct Code {
-    pub digits: [Digit; 3],
+    digits: [Digit; 3],
 }
 
 impl Code {
@@ -43,7 +43,7 @@ impl Code {
     }
 
     pub fn index(&self) -> u8 {
-        self.digits.iter().fold(0, |acc, &d| 5 * acc + d - 1)
+        25 * self.digits[0] + 5 * self.digits[1] + self.digits[2] - 31
     }
 
     pub fn count<F: Fn(Digit) -> bool>(&self, pred: F) -> u8 {
