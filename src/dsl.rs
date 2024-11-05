@@ -93,12 +93,21 @@ pub fn card_from_id(id: usize) -> Card {
         13 => lts(SQU, CIR) | eqs(SQU, CIR) | gts(SQU, CIR),
         14 => smallest(TRI) | smallest(SQU) | smallest(CIR),
         15 => biggest(TRI) | biggest(SQU) | biggest(CIR),
-        16 => cons(|c| c.count(even) > c.count(odd), format!("#even>#odd")) | cons(|c| c.count(odd) > c.count(even), format!("#odd>#even")),
+        16 =>
+            cons(|c| c.count(even) > c.count(odd), format!("#even>#odd")) |
+            cons(|c| c.count(odd) > c.count(even), format!("#odd>#even")),
         17 => num_even(0) | num_even(1) | num_even(2) | num_even(3),
         18 => cons(|c| even(c.sum()), "even(▲+■+●)".into()) | cons(|c| odd(c.sum()), "odd(▲+■+●)".into()),
-        19 => cons(|c| c[TRI] + c[SQU] < 6, "▲+■<6".into()) | cons(|c| c[TRI] + c[SQU] == 6, "▲+■=6".into()) | cons(|c| c[TRI] + c[SQU] > 6, "▲+■>6".into()),
+        19 =>
+            cons(|c| c[TRI] + c[SQU] < 6, "▲+■<6".into()) |
+            cons(|c| c[TRI] + c[SQU] == 6, "▲+■=6".into()) |
+            cons(|c| c[TRI] + c[SQU] > 6, "▲+■>6".into()),
         20 => num_distinct(1) | num_distinct(2) | num_distinct(3),
         21 => cons(|c| c.num_distinct() != 2, "#distinct≠2".into()) | num_distinct(2),
+        22 =>
+            cons(|c| c.count_adj(|a, b| a < b) == 2, "▲<■<●".into()) |
+            cons(|c| c.count_adj(|a, b| a > b) == 2, "▲>■>●".into()) |
+            cons(|c| c.count_adj(|a, b| a < b) != 2 && c.count_adj(|a, b| a > b) != 2, "not(▲<■<●|▲>■>●)".into()),
         23 => cons(|c| c.sum() < 6, "▲+■+●<6".into()) | cons(|c| c.sum() == 6, "▲+■+●=6".into()) | cons(|c| c.sum() > 6, "▲+■+●>6".into()),
         24 => num_steps_up(2) | num_steps_up(1) | num_steps_up(0),
         31 => gtv(TRI, 1) | gtv(SQU, 1) | gtv(CIR, 1),
