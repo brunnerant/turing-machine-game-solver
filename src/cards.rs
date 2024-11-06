@@ -49,6 +49,10 @@ fn numv(v: u8, n: u8) -> (String, Constraint) {
     cons(|c| c.count(|x| x == v) == n, format!("#{}={}", v, n))
 }
 
+fn sumeqv(s1: Symbol, s2: Symbol, n: u8) -> (String, Constraint) {
+    cons(|c| c[s1] + c[s2] == n, format!("{}+{}={}", s1, s2, n))
+}
+
 fn even(n: Digit) -> bool {
     n % 2 == 0
 }
@@ -86,9 +90,9 @@ pub fn card_from_id(id: usize) -> Card {
         5 => Card::new(vec![evens(TRI), odds(TRI)]),
         6 => Card::new(vec![evens(SQU), odds(SQU)]),
         7 => Card::new(vec![evens(CIR), odds(CIR)]),
-        8 => Card::new(vec![numv(1, 0), numv(1, 1), numv(1, 2), numv(1, 3)]),
-        9 => Card::new(vec![numv(3, 0), numv(3, 1), numv(3, 2), numv(3, 3)]),
-        10 => Card::new(vec![numv(4, 0), numv(4, 1), numv(4, 2), numv(4, 3)]),
+        8 => Card::new(vec![numv(1, 0), numv(1, 1), numv(1, 2)]),
+        9 => Card::new(vec![numv(3, 0), numv(3, 1), numv(3, 2)]),
+        10 => Card::new(vec![numv(4, 0), numv(4, 1), numv(4, 2)]),
         11 => Card::new(vec![lts(TRI, SQU), eqs(TRI, SQU), gts(TRI, SQU)]),
         12 => Card::new(vec![lts(TRI, CIR), eqs(TRI, CIR), gts(TRI, CIR)]),
         13 => Card::new(vec![lts(SQU, CIR), eqs(SQU, CIR), gts(SQU, CIR)]),
@@ -98,10 +102,12 @@ pub fn card_from_id(id: usize) -> Card {
             cons(|c| c.count(even) > c.count(odd), format!("#even>#odd")),
             cons(|c| c.count(odd) > c.count(even), format!("#odd>#even"))]),
         17 => Card::new(vec![num_even(0), num_even(1), num_even(2), num_even(3)]),
-        18 => Card::new(vec![cons(|c| even(c.sum()), "even(▲+■+●)".into()), cons(|c| odd(c.sum()), "odd(▲+■+●)".into())]),
+        18 => Card::new(vec![
+            cons(|c| even(c.sum()), "even(▲+■+●)".into()),
+            cons(|c| odd(c.sum()), "odd(▲+■+●)".into())]),
         19 => Card::new(vec![
             cons(|c| c[TRI] + c[SQU] < 6, "▲+■<6".into()),
-            cons(|c| c[TRI] + c[SQU] == 6, "▲+■=6".into()),
+            sumeqv(TRI, SQU, 6),
             cons(|c| c[TRI] + c[SQU] > 6, "▲+■>6".into())]),
         20 => Card::new(vec![num_distinct(1), num_distinct(2), num_distinct(3)]),
         21 => Card::new(vec![cons(|c| c.num_distinct() != 2, "#distinct≠2".into()), num_distinct(2)]),
@@ -109,10 +115,15 @@ pub fn card_from_id(id: usize) -> Card {
             cons(|c| c.count_adj(|a, b| a < b) == 2, "▲<■<●".into()),
             cons(|c| c.count_adj(|a, b| a > b) == 2, "▲>■>●".into()),
             cons(|c| c.count_adj(|a, b| a < b) != 2 && c.count_adj(|a, b| a > b) != 2, "not(▲<■<●|▲>■>●)".into())]),
-        23 => Card::new(vec![cons(|c| c.sum() < 6, "▲+■+●<6".into()), cons(|c| c.sum() == 6, "▲+■+●=6".into()), cons(|c| c.sum() > 6, "▲+■+●>6".into())]),
+        23 => Card::new(vec![
+            cons(|c| c.sum() < 6, "▲+■+●<6".into()),
+            cons(|c| c.sum() == 6, "▲+■+●=6".into()),
+            cons(|c| c.sum() > 6, "▲+■+●>6".into())]),
         24 => Card::new(vec![num_steps_up(2), num_steps_up(1), num_steps_up(0)]),
         31 => Card::new(vec![gtv(TRI, 1), gtv(SQU, 1), gtv(CIR, 1)]),
         33 => Card::new(Symbol::all_symbols().flat_map(|s| vec![evens(s), odds(s)]).collect()),
+        38 => Card::new(Symbol::all_combinations().map(|(s1, s2)| sumeqv(s1, s2, 6)).collect()),
+        40 => Card::new(Symbol::all_symbols().flat_map(|s| vec![ltv(s, 3), eqv(s, 3), gtv(s, 3)]).collect()),
         44 => Card::new(vec![lts(SQU, TRI), eqs(SQU, TRI), gts(SQU, TRI), lts(SQU, CIR), eqs(SQU, CIR), gts(SQU, CIR)]),
         46 => Card::new(vec![numv(3, 0), numv(3, 1), numv(3, 2), numv(4, 0), numv(4, 1), numv(4, 2)]),
         48 => Card::new(Symbol::all_combinations().flat_map(|(s1, s2)| vec![lts(s1, s2), eqs(s1, s2), gts(s2, s2)]).collect()),
