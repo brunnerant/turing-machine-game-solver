@@ -21,20 +21,24 @@ fn main() {
     }
 
     let problem = Problem::from_card_ids(mode, ids.into_iter().map(|v| v.unwrap()).collect());
-    println!("{}", problem);
+    print!("{}", problem);
 
-    let mut solver = Solver::new(&problem);
+    let mut solver = Solver::new(&problem).verbose(false);
     match solver.solve() {
         Ok(sol) => {
+            println!();
             println!("Found solution: {}", sol);
             println!("Number of rounds: {}", solver.num_rounds());
             println!("Number of questions: {}", solver.num_questions());
         }
-        Err(SolverError::Impossible(v)) => {
-            println!("Verifier {} is invalid because all its constraints are impossible.", v);
+        Err(SolverError::Impossible(vs)) => {
+            let letters = "ABCDEF".chars().collect_vec();
+            println!();
+            println!("Verifiers {} are invalid because all their constraints are impossible.", vs.iter().map(|v| letters[*v]).join(", "));
             println!("You might have entered a wrong value, or the problem is ill-defined.");
         }
         Err(SolverError::MultipleSolutions(sols)) => {
+            println!();
             println!("The set of cards leads to several solutions: {}", sols.iter().map(|s| format!("{}", s)).join(", "));
             println!("You might have entered a wrong value, or the problem is ill-defined.");
         }

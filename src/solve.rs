@@ -4,7 +4,7 @@ use num::Rational32;
 use crate::{code::{Code, Symbol}, constraint::Constraint, problem::{Problem, ProblemMode}};
 
 pub enum SolverError {
-    Impossible(char),
+    Impossible(Vec<usize>),
     MultipleSolutions(Vec<Code>),
 }
 
@@ -12,6 +12,7 @@ pub struct Solver {
     verifiers: Vec<Vec<Constraint>>, // The set of constraints for every verifier
     questions: Vec<Code>, // The questions that were asked
     answers: Vec<HashMap<usize, bool>>, // The answers that were given
+    verbose: bool,
 }
 
 impl Solver {
@@ -37,13 +38,12 @@ impl Solver {
                 repeat(constraints).take(problem.cards.len()).collect()
             }
         };
-        Solver { verifiers, questions: Vec::new(), answers: Vec::new() }
+        Solver { verifiers, questions: Vec::new(), answers: Vec::new(), verbose: false }
     }
 
-    fn assign_groups(mut constraints: Vec<Vec<Constraint>>) -> Vec<Vec<Constraint>> {
-        constraints.iter_mut().enumerate()
-            .for_each(|(i, cs)| cs.into_iter().for_each(|c| *c = c.with_group(i as u8)));
-        constraints
+    pub fn verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
+        self
     }
 
     pub fn num_rounds(&self) -> usize {
@@ -52,6 +52,12 @@ impl Solver {
 
     pub fn num_questions(&self) -> usize {
         self.answers.iter().map(|a| a.len()).sum()
+    }
+
+    fn assign_groups(mut constraints: Vec<Vec<Constraint>>) -> Vec<Vec<Constraint>> {
+        constraints.iter_mut().enumerate()
+            .for_each(|(i, cs)| cs.into_iter().for_each(|c| *c = c.with_group(i as u8)));
+        constraints
     }
 
     pub fn print_state(&self) {
@@ -68,6 +74,12 @@ impl Solver {
         }
     }
 
+    fn err_if_invalid(&self) -> Result<(), SolverError> {
+        let vs: Vec<_> = self.verifiers.iter().enumerate()
+            .filter_map(|(i, cs)| if cs.is_empty() { Some(i) } else { None }).collect();
+        if vs.is_empty() { Ok(()) } else { Err(SolverError::Impossible(vs)) }
+    }
+
     fn has_solution(&self) -> Result<Option<Code>, SolverError> {
         let known_constraints = self.verifiers.iter()
             .map(|cs| if cs.len() == 1 { Some(cs[0]) } else { None }).collect::<Vec<_>>();
@@ -82,9 +94,6 @@ impl Solver {
         }
     }
 
-    // TODO: Remove redundant constraints ?
-    // Constraints that make all the constraints of another card redundant
-
     fn best_question(&self) -> Code {
         let mut questions = Vec::with_capacity(125);
         for c in Code::all() {
@@ -93,7 +102,11 @@ impl Solver {
             questions.push((total_elims, c));
         }
         questions.sort_by_key(|(e, _)| *e);
-        questions.pop().unwrap().1
+        let (e, c) = questions.pop().unwrap();
+        if self.verbose {
+            println!("Expected number of eliminations from the question: {:.1}", *e.numer() as f32 / *e.denom() as f32)
+        }
+        c
     }
 
     fn valid_constraints(constraints: &Vec<Constraint>) -> bool {
@@ -114,8 +127,17 @@ impl Solver {
         })
     }
 
-    fn eliminate(&mut self) {
-        while self.eliminate_step() > 0 {}
+    fn eliminate(&mut self) -> Result<(), SolverError> {
+        let mut num_elims = 0;
+        loop {
+            let n = self.eliminate_step();
+            num_elims += n;
+            if n == 0 { break }
+        }
+        if self.verbose {
+            println!("Number of eliminations from deductions: {}", num_elims);
+        }
+        self.err_if_invalid()
     }
 
     fn eliminate_step(&mut self) -> usize {
@@ -139,8 +161,15 @@ impl Solver {
 
     fn best_verifier_for_question(&self, code: Code) -> Option<usize> {
         let elims = self.verifiers.iter().map(|v| Self::expected_eliminations(v, code));
-        let (v_idx, total_elims) = elims.enumerate().max_by_key(|(_, e)| *e).unwrap();
-        if total_elims == Rational32::ZERO { None } else { Some(v_idx) } 
+        let (v_idx, e) = elims.enumerate().max_by_key(|(_, e)| *e).unwrap();
+        if self.verbose {
+            if e == Rational32::ZERO {
+                println!("No more information from question.")
+            } else {
+                println!("Expected number of eliminations from the answer: {:.1}", *e.numer() as f32 / *e.denom() as f32);
+            }
+        }
+        if e == Rational32::ZERO { None } else { Some(v_idx) } 
     }
 
     fn expected_eliminations(verifier: &Vec<Constraint>, code: Code) -> Rational32 {
@@ -156,15 +185,19 @@ impl Solver {
         let letter = "ABCDEF".chars().nth(verifier).unwrap();
 
         // Ask the user for the result
+        println!();
         println!("Please type in the answer of verifier {} for the code ▲■●={}", letter, code);
         let answer = input_validation::get_bool("Answer [y/n] > ");
-        println!();
         
         // From the answer, eliminate the constraints that didn't agree
+        let len_before = constraints.len();
         constraints.retain(|c| c.accepts(code) == answer);
+        if self.verbose {
+            println!("Number of eliminations from answer: {}", len_before - constraints.len());
+        }
 
         // Eliminate constraints
-        self.eliminate();
+        self.eliminate()?;
         Ok(answer)
     }
 
@@ -188,12 +221,12 @@ impl Solver {
 
     pub fn solve(&mut self) -> Result<Code, SolverError> {
         let mut round = 1;
-        self.eliminate();
-
+        self.eliminate()?;
+        
         loop {
-            println!("--- Round {} ---", round);
-            self.print_state();
             println!();
+            println!("━ Round {} ━━━", round);
+            self.print_state();
 
             let c = self.best_question();
             self.round(c)?;
