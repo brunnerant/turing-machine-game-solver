@@ -19,19 +19,19 @@ impl Solver {
         let verifiers: Vec<Vec<_>> = match problem.mode {
             ProblemMode::Normal => {
                 Self::assign_groups(problem.cards.iter()
-                    .map(|c| c.constraints.values().copied().collect())
+                    .map(|c| c.constraints())
                     .collect())
             },
             ProblemMode::Extreme => {
                 Self::assign_groups(problem.cards.iter()
                     .chunks(2).into_iter()
-                    .map(|b| b.flat_map(|c| c.constraints.values().copied()).collect())
+                    .map(|b| b.flat_map(|c| c.constraints()).collect())
                     .collect())
             },
             ProblemMode::Nightmare => {
                 let constraints = Self::assign_groups(
                         problem.cards.iter()
-                        .map(|c| c.constraints.values().copied().collect())
+                        .map(|c| c.constraints())
                         .collect()
                     ).into_iter().flatten().collect();
                 repeat(constraints).take(problem.cards.len()).collect()
@@ -42,7 +42,7 @@ impl Solver {
 
     fn assign_groups(mut constraints: Vec<Vec<Constraint>>) -> Vec<Vec<Constraint>> {
         constraints.iter_mut().enumerate()
-            .for_each(|(i, cs)| cs.into_iter().for_each(|c| c.set_group(i as u8)));
+            .for_each(|(i, cs)| cs.into_iter().for_each(|c| *c = c.with_group(i as u8)));
         constraints
     }
 
@@ -73,7 +73,7 @@ impl Solver {
             .map(|cs| if cs.len() == 1 { Some(cs[0]) } else { None }).collect::<Vec<_>>();
 
         if known_constraints.iter().all(|c| c.is_some()) {
-            let cons = known_constraints.iter().flatten().fold(Constraint::none(), |a, &b| a & b.clone());
+            let cons = Constraint::inter(known_constraints.iter().flatten().copied());
             cons.solution().map_or_else(
                 || Err(SolverError::MultipleSolutions(cons.solutions().collect())),
                 |s| Ok(Some(s)))
@@ -94,6 +94,47 @@ impl Solver {
         }
         questions.sort_by_key(|(e, _)| *e);
         questions.pop().unwrap().1
+    }
+
+    fn valid_constraints(constraints: &Vec<Constraint>) -> bool {
+        // The constraints must uniquely define the solution
+        if !Constraint::inter(constraints.iter().copied()).has_unique_solution() {
+            return false;
+        }
+
+        // The constraints must all come from different cards (for nightmare mode only)
+        if !constraints.iter().map(|c| c.group()).all_unique() {
+            return false;
+        }
+
+        // No constraint should be redundant
+        (0..constraints.len()).all(|i| {
+            let others = constraints.iter().enumerate().filter_map(|(j, c)| if j == i { None } else { Some(c) }).copied();
+            !constraints[i].is_superset_of(&Constraint::inter(others))
+        })
+    }
+
+    fn eliminate(&mut self) {
+        while self.eliminate_step() > 0 {}
+    }
+
+    fn eliminate_step(&mut self) -> usize {
+        let mut impossible: Vec<_> = self.verifiers.iter().map(|cs| vec![true; cs.len()]).collect();
+
+        for idx in self.verifiers.iter().map(|cs| 0..cs.len()).multi_cartesian_product() {
+            let constraints = self.verifiers.iter().zip(idx.iter().copied()).map(|(cs, i)| cs[i]).collect();
+            if Self::valid_constraints(&constraints) {
+                impossible.iter_mut().zip(idx.iter().copied()).for_each(|(imp, i)| imp[i] = false)
+            }
+        }
+
+        let mut num_elim = 0;
+        for (cs, imp) in self.verifiers.iter_mut().zip(impossible) {
+            let mut i = 0;
+            cs.retain(|_| { let res = !imp[i]; i += 1; res });
+            num_elim += imp.into_iter().filter(|&i| i).count();
+        }
+        num_elim
     }
 
     fn best_verifier_for_question(&self, code: Code) -> Option<usize> {
@@ -123,6 +164,7 @@ impl Solver {
         constraints.retain(|c| c.accepts(code) == answer);
 
         // Eliminate constraints
+        self.eliminate();
         Ok(answer)
     }
 
@@ -146,11 +188,12 @@ impl Solver {
 
     pub fn solve(&mut self) -> Result<Code, SolverError> {
         let mut round = 1;
-        // Eliminate
+        self.eliminate();
 
         loop {
             println!("--- Round {} ---", round);
             self.print_state();
+            println!();
 
             let c = self.best_question();
             self.round(c)?;

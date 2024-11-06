@@ -9,8 +9,19 @@ pub struct Constraint {
 }
 
 impl Constraint {
+    const GROUP_MASK: u128 = (1 << 125) - 1;
+
     pub fn none() -> Self {
         Constraint { value: !0 }
+    }
+
+    pub fn inter(cs: impl Iterator<Item = Constraint>) -> Constraint {
+        cs.fold(Self::none(), |a, b| a & b)
+    }
+
+    pub fn is_superset_of(&self, other: &Constraint) -> bool {
+        let v = other.with_group(0).value;
+        self.value & v == v
     }
 
     pub fn new<F: Fn(Code) -> bool>(f: F) -> Self {
@@ -23,8 +34,8 @@ impl Constraint {
         Constraint { value }
     }
 
-    pub fn set_group(&mut self, group: u8) {
-        self.value = (self.value & ((1 << 125) - 1)) | (group as u128) << 125;
+    pub fn with_group(&self, group: u8) -> Self {
+        Constraint { value: (self.value & Self::GROUP_MASK) | (group as u128) << 125 }
     }
 
     pub fn group(&self) -> u8 {
@@ -36,10 +47,10 @@ impl Constraint {
     }
 
     pub fn num_solutions(&self) -> u32 {
-        self.value.count_ones()
+        (self.value & Self::GROUP_MASK).count_ones()
     }
 
-    pub fn is_sufficient(&self) -> bool {
+    pub fn has_unique_solution(&self) -> bool {
         self.num_solutions() == 1
     }
 
@@ -49,7 +60,7 @@ impl Constraint {
     }
 
     pub fn solution(&self) -> Option<Code> {
-        if self.is_sufficient() {
+        if self.has_unique_solution() {
             let idx = self.value.trailing_zeros();
             Some(Code::new((idx / 25 + 1) as Digit, ((idx / 5) % 5 + 1) as Digit, (idx % 5 + 1) as Digit))
         } else {

@@ -1,21 +1,25 @@
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 
 use itertools::Itertools;
 
 use crate::{cards::card_from_id, constraint::Constraint};
 
 #[derive(Clone)]
-pub struct Card { pub constraints: HashMap<String, Constraint> }
+pub struct Card { pub constraints: Vec<(String, Constraint)> }
 
 impl Card {
-    pub fn new(cons: Vec<(String, Constraint)>) -> Card {
-        Card { constraints: HashMap::from_iter(cons.into_iter()) }
+    pub fn new(constraints: Vec<(String, Constraint)>) -> Card {
+        Card { constraints }
+    }
+
+    pub fn constraints(&self) -> Vec<Constraint> {
+        self.constraints.iter().map(|kv| kv.1).collect()
     }
 }
 
 impl Display for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}]", self.constraints.keys().join(", "))
+        write!(f, "[{}]", self.constraints.iter().map(|kv| &kv.0).join(", "))
     }
 }
 
