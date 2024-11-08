@@ -210,7 +210,7 @@ pub fn card_from_id(id: u8) -> Card {
         33 => card_from_ids([34, 37, 35, 38, 36, 39]),
         34 => card_from_ids([128, 129, 130]),
         35 => card_from_ids([125, 126, 127]),
-        36 => card_from_ids([57, 58, 50]),
+        36 => card_from_ids([57, 58, 59]),
         37 => card_from_ids([98, 103, 108]),
         38 => card_from_ids([100, 105, 110]),
         39 => card_from_ids([1, 16, 6, 19, 11, 22]),
@@ -229,20 +229,49 @@ pub fn card_from_id(id: u8) -> Card {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::{fs, iter::repeat};
 
     use itertools::Itertools;
-    use crate::{code::Code, constraint::Constraint};
-    use super::constraint_from_id;
+    use json::JsonValue;
+    use crate::{code::Code, constraint::Constraint, problem::{Problem, ProblemMode}};
+    use super::{card_from_id, constraint_from_id};
+
+    fn json_to_problem(obj: &JsonValue) -> Problem {
+        let mode = match obj["mode"].as_str() {
+            Some("normal") => ProblemMode::Normal,
+            Some("extreme") => ProblemMode::Extreme,
+            Some("nightmare") => ProblemMode::Nightmare,
+            _ => panic!("Invalid game mode encountered.")
+        };
+        let cards = obj["cards"].members().map(|id| card_from_id(id.as_u8().unwrap())).collect();
+        Problem::from_cards(mode, cards)
+    }
 
     #[test]
-    pub fn laws_uniquely_define_solution() {
+    pub fn problems_are_well_defined() {
         let problems = json::parse(fs::read_to_string("data/games.json").unwrap().as_str()).unwrap();
         for obj in problems.members() {
             let (a, b, c) = obj["solution"].members().map(|d| d.as_u8().unwrap()).collect_tuple().unwrap();
             let solution = Code::new(a, b, c);
             let constraints = obj["laws"].members().map(|id| constraint_from_id(id.as_u8().unwrap()).1);
-            assert_eq!(Constraint::inter(constraints).solution(), Some(solution));
+            let problem = json_to_problem(obj);
+            
+            // The intersection of the constraints should give the unique solution of the problem
+            assert_eq!(Constraint::inter(constraints.clone()).solution(), Some(solution));
+            
+            // Each verifier should have a single constraint associated with it
+            let possible_constraints: Vec<Vec<_>> = match problem.mode {
+                ProblemMode::Normal => problem.cards.iter().map(|c| c.constraints()).collect(),
+                ProblemMode::Extreme => problem.cards.iter().chunks(2).into_iter().map(|c| c.flat_map(|c| c.constraints()).collect()).collect(),
+                ProblemMode::Nightmare => {
+                    let constraints = problem.cards.iter().flat_map(|c| c.constraints()).collect();
+                    repeat(constraints).take(problem.cards.len()).collect()
+                },
+            };
+
+            for (constraint, possible) in constraints.zip(possible_constraints) {
+                assert_eq!(possible.into_iter().filter(|&c| c == constraint).count(), 1, "{}", obj);
+            }
         }
     }
 }
