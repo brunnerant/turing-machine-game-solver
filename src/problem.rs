@@ -23,8 +23,19 @@ impl Display for Card {
     }
 }
 
+#[derive(PartialEq, Eq)]
 pub enum ProblemMode {
     Normal, Extreme, Nightmare
+}
+
+impl Display for ProblemMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProblemMode::Normal => write!(f, "normal"),
+            ProblemMode::Extreme => write!(f, "extreme"),
+            ProblemMode::Nightmare => write!(f, "nightmare"),
+        }
+    }
 }
 
 pub struct Problem { pub cards: Vec<Card>, pub mode: ProblemMode }

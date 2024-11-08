@@ -1,6 +1,6 @@
 use std::env;
 use itertools::Itertools;
-use turing_machine_game::{problem::{Problem, ProblemMode}, solve::{Solver, SolverError}};
+use turing_machine_game::{problem::{Problem, ProblemMode}, solve::{CommandLineVerifier, Solver, SolverError, SolverVerbosity}};
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -23,7 +23,7 @@ fn main() {
     let problem = Problem::from_card_ids(mode, ids.into_iter().map(|v| v.unwrap()).collect());
     print!("{}", problem);
 
-    let mut solver = Solver::new(&problem).verbose(false);
+    let mut solver = Solver::<CommandLineVerifier>::new(&problem).verbosity(SolverVerbosity::Normal);
     match solver.solve() {
         Ok(sol) => {
             println!();

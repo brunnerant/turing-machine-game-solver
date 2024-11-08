@@ -3,20 +3,48 @@ use itertools::Itertools;
 use num::Rational32;
 use crate::{code::{Code, Symbol}, constraint::Constraint, problem::{Problem, ProblemMode}};
 
+pub trait Verifier {
+    fn accepts(&self, idx: usize, code: Code) -> bool;
+}
+
+pub struct CommandLineVerifier;
+pub struct AutomaticVerifier(Vec<Constraint>);
+
+impl Verifier for CommandLineVerifier {
+    fn accepts(&self, idx: usize, code: Code) -> bool {
+        let letter = "ABCDEF".chars().nth(idx).unwrap();
+        println!();
+        println!("Please type in the answer of verifier {} for the code ▲■●={}", letter, code);
+        input_validation::get_bool("Answer [y/n] > ")
+    }
+}
+
+impl Verifier for AutomaticVerifier {
+    fn accepts(&self, idx: usize, code: Code) -> bool {
+        self.0[idx].accepts(code)
+    }
+}
+
+#[derive(PartialEq, Eq)]
+pub enum SolverVerbosity {
+    None, Normal, Verbose
+}
+
 pub enum SolverError {
     Impossible(Vec<usize>),
     MultipleSolutions(Vec<Code>),
 }
 
-pub struct Solver {
+pub struct Solver<V: Verifier> {
     verifiers: Vec<Vec<Constraint>>, // The set of constraints for every verifier
     questions: Vec<Code>, // The questions that were asked
     answers: Vec<HashMap<usize, bool>>, // The answers that were given
-    verbose: bool,
+    verbosity: SolverVerbosity,
+    verifier: V,
 }
 
-impl Solver {
-    pub fn new(problem: &Problem) -> Solver {
+impl<V: Verifier> Solver<V> {
+    pub fn new(problem: &Problem) -> Solver<CommandLineVerifier> {
         let verifiers: Vec<Vec<_>> = match problem.mode {
             ProblemMode::Normal => {
                 Self::assign_groups(problem.cards.iter()
@@ -38,12 +66,28 @@ impl Solver {
                 repeat(constraints).take(problem.cards.len()).collect()
             }
         };
-        Solver { verifiers, questions: Vec::new(), answers: Vec::new(), verbose: false }
+        Solver {
+            verifiers,
+            questions: Vec::new(),
+            answers: Vec::new(),
+            verbosity: SolverVerbosity::Normal,
+            verifier: CommandLineVerifier,
+        }
     }
 
-    pub fn verbose(mut self, verbose: bool) -> Self {
-        self.verbose = verbose;
+    pub fn verbosity(mut self, verbosity: SolverVerbosity) -> Self {
+        self.verbosity = verbosity;
         self
+    }
+
+    pub fn automatic(self, verifiers: Vec<Constraint>) -> Solver<AutomaticVerifier> {
+        Solver {
+            verifiers: self.verifiers,
+            questions: self.questions,
+            answers: self.answers,
+            verbosity: SolverVerbosity::None,
+            verifier: AutomaticVerifier(verifiers),
+        }
     }
 
     pub fn num_rounds(&self) -> usize {
@@ -103,7 +147,7 @@ impl Solver {
         }
         questions.sort_by_key(|(e, _)| *e);
         let (e, c) = questions.pop().unwrap();
-        if self.verbose {
+        if self.verbosity == SolverVerbosity::Verbose {
             println!("Expected number of eliminations from the question: {:.1}", *e.numer() as f32 / *e.denom() as f32)
         }
         c
@@ -134,7 +178,7 @@ impl Solver {
             num_elims += n;
             if n == 0 { break }
         }
-        if self.verbose {
+        if self.verbosity == SolverVerbosity::Verbose {
             println!("Number of eliminations from deductions: {}", num_elims);
         }
         self.err_if_invalid()
@@ -162,7 +206,7 @@ impl Solver {
     fn best_verifier_for_question(&self, code: Code) -> Option<usize> {
         let elims = self.verifiers.iter().map(|v| Self::expected_eliminations(v, code));
         let (v_idx, e) = elims.enumerate().max_by_key(|(_, e)| *e).unwrap();
-        if self.verbose {
+        if self.verbosity == SolverVerbosity::Verbose {
             if e == Rational32::ZERO {
                 println!("No more information from question.")
             } else {
@@ -180,19 +224,14 @@ impl Solver {
     }
 
     pub fn question(&mut self, code: Code, verifier: usize) -> Result<bool, SolverError> {
-        // Retrieve the card that we are querying
+        // Retrieve the card that we are querying and ask the user for the result
         let constraints = &mut self.verifiers[verifier];
-        let letter = "ABCDEF".chars().nth(verifier).unwrap();
-
-        // Ask the user for the result
-        println!();
-        println!("Please type in the answer of verifier {} for the code ▲■●={}", letter, code);
-        let answer = input_validation::get_bool("Answer [y/n] > ");
+        let answer = self.verifier.accepts(verifier, code);
         
         // From the answer, eliminate the constraints that didn't agree
         let len_before = constraints.len();
         constraints.retain(|c| c.accepts(code) == answer);
-        if self.verbose {
+        if self.verbosity == SolverVerbosity::Verbose {
             println!("Number of eliminations from answer: {}", len_before - constraints.len());
         }
 
@@ -202,20 +241,17 @@ impl Solver {
     }
 
     pub fn round(&mut self, code: Code) -> Result<(), SolverError> {
-        // Start the round of questions
-        self.questions.push(code);
         let mut answers = HashMap::new();
-
         for _ in 0..3 {
-            let v_idx = if let Some(i) = self.best_verifier_for_question(code) { i } else {
-                self.answers.push(answers);
-                return Ok(())
-            };
+            let v_idx = if let Some(i) = self.best_verifier_for_question(code) { i } else { break };
             let answer = self.question(code, v_idx)?;
             answers.insert(v_idx, answer);
         }
 
-        self.answers.push(answers);
+        if !answers.is_empty() {
+            self.questions.push(code);
+            self.answers.push(answers);
+        }
         Ok(())
     }
 
@@ -224,9 +260,11 @@ impl Solver {
         self.eliminate()?;
         
         loop {
-            println!();
-            println!("━ Round {} ━━━", round);
-            self.print_state();
+            if self.verbosity != SolverVerbosity::None {
+                println!();
+                println!("━ Round {} ━━━", round);
+                self.print_state();
+            }
 
             let c = self.best_question();
             self.round(c)?;
