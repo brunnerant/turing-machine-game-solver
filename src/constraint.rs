@@ -69,6 +69,12 @@ impl Constraint {
     }
 }
 
+impl PartialEq for Constraint {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
 impl BitAnd for Constraint {
     type Output = Constraint;
 

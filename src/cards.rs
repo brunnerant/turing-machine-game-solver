@@ -173,7 +173,7 @@ fn card_from_ids<const N: usize>(ids: [u8; N]) -> Card {
     Card::new(ids.into_iter().map(constraint_from_id).collect())
 }
 
-pub fn card_from_id(id: usize) -> Card {
+pub fn card_from_id(id: u8) -> Card {
     match id {
         1 => card_from_ids([1, 16]),
         2 => card_from_ids([25, 3, 18]),
@@ -224,5 +224,25 @@ pub fn card_from_id(id: usize) -> Card {
         47 => card_from_ids([40, 41, 41, 49, 50, 51]),
         48 => card_from_ids([139, 89, 92, 140, 90, 93, 141, 91, 95]),
         _ => panic!("Card {} is unknown", id),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use itertools::Itertools;
+    use crate::{code::Code, constraint::Constraint};
+    use super::constraint_from_id;
+
+    #[test]
+    pub fn laws_uniquely_define_solution() {
+        let problems = json::parse(fs::read_to_string("data/games.json").unwrap().as_str()).unwrap();
+        for obj in problems.members() {
+            let (a, b, c) = obj["solution"].members().map(|d| d.as_u8().unwrap()).collect_tuple().unwrap();
+            let solution = Code::new(a, b, c);
+            let constraints = obj["laws"].members().map(|id| constraint_from_id(id.as_u8().unwrap()).1);
+            assert_eq!(Constraint::inter(constraints).solution(), Some(solution));
+        }
     }
 }

@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 input_validation = "0.1.2"
 itertools = "0.13.0"
+json = "0.12.4"
 num = "0.4.3"

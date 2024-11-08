@@ -34,7 +34,7 @@ impl Problem {
         Problem { cards, mode }
     }
 
-    pub fn from_card_ids(mode: ProblemMode, ids: Vec<usize>) -> Problem {
+    pub fn from_card_ids(mode: ProblemMode, ids: Vec<u8>) -> Problem {
         Problem { cards: ids.into_iter().map(card_from_id).collect(), mode }
     }
 }

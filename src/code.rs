@@ -28,7 +28,7 @@ impl Display for Symbol {
 
 pub type Digit = u8;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Code {
     digits: [Digit; 3],
 }
