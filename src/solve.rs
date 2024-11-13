@@ -3,11 +3,15 @@ use itertools::Itertools;
 use num::Rational32;
 use crate::{code::{Code, Symbol}, constraint::Constraint, problem::{Problem, ProblemMode}};
 
+// This trait is used to inject user input into the solver to run it in testing mode
 pub trait Verifier {
     fn accepts(&self, idx: usize, code: Code) -> bool;
 }
 
+// This verifier asks the user about what a card answers for a given code
 pub struct CommandLineVerifier;
+
+// This verifier automatically answers what the card would answer given the constraint that they obey
 pub struct AutomaticVerifier(Vec<Constraint>);
 
 impl Verifier for CommandLineVerifier {
@@ -75,11 +79,13 @@ impl<V: Verifier> Solver<V> {
         }
     }
 
+    // Change the verbosity of the solver
     pub fn verbosity(mut self, verbosity: SolverVerbosity) -> Self {
         self.verbosity = verbosity;
         self
     }
 
+    // Puts the solver into automatic mode: outputs nothing and automatically answers questions. Useful for testing.
     pub fn automatic(self, verifiers: Vec<Constraint>) -> Solver<AutomaticVerifier> {
         Solver {
             verifiers: self.verifiers,
@@ -104,6 +110,7 @@ impl<V: Verifier> Solver<V> {
         constraints
     }
 
+    // Prints the state of the solver
     pub fn print_state(&self) {
         if self.questions.is_empty() {
             println!("No questions asked yet.");
@@ -124,6 +131,7 @@ impl<V: Verifier> Solver<V> {
         if vs.is_empty() { Ok(()) } else { Err(SolverError::Impossible(vs)) }
     }
 
+    // Checks if a solution was found or not, or returns an error if several solutions are possible
     fn has_solution(&self) -> Result<Option<Code>, SolverError> {
         let known_constraints = self.verifiers.iter()
             .map(|cs| if cs.len() == 1 { Some(cs[0]) } else { None }).collect::<Vec<_>>();
@@ -138,6 +146,7 @@ impl<V: Verifier> Solver<V> {
         }
     }
 
+    // Finds the best question to ask with the elimination heuristic
     fn best_question(&self) -> Code {
         let mut questions = Vec::with_capacity(125);
         for c in Code::all() {
@@ -153,14 +162,15 @@ impl<V: Verifier> Solver<V> {
         c
     }
 
+    // Checks if the given set of constraints are valid or not
     fn valid_constraints(constraints: &Vec<Constraint>) -> bool {
-        // The constraints must uniquely define the solution
-        if !Constraint::inter(constraints.iter().copied()).has_unique_solution() {
+        // The constraints must all come from different cards (for nightmare mode only)
+        if !constraints.iter().map(|c| c.group()).all_unique() {
             return false;
         }
 
-        // The constraints must all come from different cards (for nightmare mode only)
-        if !constraints.iter().map(|c| c.group()).all_unique() {
+        // The constraints must uniquely define the solution
+        if !Constraint::inter(constraints.iter().copied()).has_unique_solution() {
             return false;
         }
 
@@ -171,6 +181,8 @@ impl<V: Verifier> Solver<V> {
         })
     }
 
+    // Eliminates impossible constraints, that is, constraints for which no combination
+    // of the other constraints gives valid solutions
     fn eliminate(&mut self) -> Result<(), SolverError> {
         let mut num_elims = 0;
         loop {
